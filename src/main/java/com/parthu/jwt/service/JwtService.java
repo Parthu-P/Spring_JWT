@@ -9,15 +9,19 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import com.parthu.jwt.entity.User;
+import com.parthu.jwt.repository.TokenRepository;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class JwtService {
 	
+	private final TokenRepository tokenRepository;
 	private final String SECRET_KEY="e477a8005857fb55dd5eb955063f1497e9fba8d62212c2e0f6841b80f1735f6a";
 
 	public String extractUsername(String token) {
@@ -25,9 +29,15 @@ public class JwtService {
 	}
 	
 	public boolean isValid(String token, UserDetails user) {
-		String username=extractUsername(token);
-		return username.equals(user.getUsername()) && !isTokenExpired(token);
-	}
+        String username = extractUsername(token);
+
+        boolean validToken = tokenRepository
+                .findByToken(token)
+                .map(t -> !t.isLoggedOut())
+                .orElse(false);
+
+        return (username.equals(user.getUsername())) && !isTokenExpired(token) && validToken;
+    }
 	
 	private boolean isTokenExpired(String token) {
 		return extractExpiration(token).before(new Date());

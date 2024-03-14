@@ -1,7 +1,6 @@
 package com.parthu.jwt.entity;
 
 import java.util.Collection;
-
 import java.util.List;
 
 import org.springframework.security.core.GrantedAuthority;
@@ -13,12 +12,13 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "USER_TABLE")
+@Table(name = "user")
 @Setter
 @Getter
 public class User implements UserDetails {
@@ -33,6 +33,9 @@ public class User implements UserDetails {
 
 	@Enumerated(value = EnumType.STRING)
 	private Role role;
+	
+	@OneToMany(mappedBy = "user")
+    private List<Token> tokens;
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
