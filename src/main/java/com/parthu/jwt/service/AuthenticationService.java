@@ -2,17 +2,24 @@ package com.parthu.jwt.service;
 
 import java.util.List;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.core.exc.StreamWriteException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parthu.jwt.entity.AutheticationResponse;
 import com.parthu.jwt.entity.Token;
 import com.parthu.jwt.entity.User;
 import com.parthu.jwt.repository.TokenRepository;
 import com.parthu.jwt.repository.UserRepository;
 
+import io.jsonwebtoken.io.IOException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -28,7 +35,7 @@ public class AuthenticationService {
 	public AutheticationResponse register(User request) {
 
 		if (repository.findByEmail(request.getEmail()).isPresent()) {
-			return new AutheticationResponse(null, "User already exist");
+			return new AutheticationResponse(null, "User already exist", null);
 		}
 		User user = new User();
 
@@ -41,10 +48,11 @@ public class AuthenticationService {
 
 		user = repository.save(user);
 
-		String jwt = jwtService.generateToken(user);
+		var jwt = jwtService.generateToken(user);
+		var refreshToken = jwtService.generateRefreshToken(user);
 
 		saveUserToken(user, jwt);
-		return new AutheticationResponse(jwt, "User registration was successful");
+		return new AutheticationResponse(jwt, "User registration was successful", refreshToken);
 	}
 
 	private void saveUserToken(User user, String jwt) {
@@ -60,11 +68,12 @@ public class AuthenticationService {
 		authenticationManager
 				.authenticate(new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
 		User user = repository.findByEmail(request.getUsername()).orElseThrow();
-		String token = jwtService.generateToken(user);
+		var token = jwtService.generateToken(user);
+		var refreshToken = jwtService.generateRefreshToken(user);
 
 		revokeAllTokenByUser(user);
 		saveUserToken(user, token);
-		return new AutheticationResponse(token, "User login was successful");
+		return new AutheticationResponse(token, "User login was successful", refreshToken);
 	}
 
 	private void revokeAllTokenByUser(User user) {
@@ -72,9 +81,37 @@ public class AuthenticationService {
 		if (validTokens.isEmpty()) {
 			return;
 		}
-
-		validTokens.forEach(t -> {
-			t.setLoggedOut(true);
+		validTokens.forEach(token -> {
+			token.setLoggedOut(true);
 		});
+		tokenRepository.saveAll(validTokens);
+	}
+
+	public void refreshToken(HttpServletRequest request, HttpServletResponse response)
+			throws IOException, StreamWriteException, DatabindException, java.io.IOException{
+
+		final String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+		final String refreshToken;
+		final String email;
+		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+			return;
+		}
+		refreshToken = authHeader.substring(7);
+		email = jwtService.extractUsername(refreshToken);
+
+		if (email != null) {
+			var user = this.repository.findByEmail(email).orElseThrow();
+			if (jwtService.isValid(refreshToken, user)) {
+				var accessToken = jwtService.generateToken(user);
+				revokeAllTokenByUser(user);
+				saveUserToken(user, accessToken);
+				var authResponse = AutheticationResponse
+						.builder().token(accessToken)
+						.refreshToken(refreshToken)
+						.build();
+				new ObjectMapper().writeValue(response.getOutputStream(), authResponse);
+			}
+
+		}
 	}
 }

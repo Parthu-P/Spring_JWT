@@ -18,10 +18,14 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "user")
 @Setter
 @Getter
+@Table(name="_user")
 public class User implements UserDetails {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
 	@Id
 	@GeneratedValue
 	private Integer id;

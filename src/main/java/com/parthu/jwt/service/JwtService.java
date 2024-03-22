@@ -5,6 +5,7 @@ import java.util.function.Function;
 
 import javax.crypto.SecretKey;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +23,15 @@ import lombok.RequiredArgsConstructor;
 public class JwtService {
 	
 	private final TokenRepository tokenRepository;
-	private final String SECRET_KEY="e477a8005857fb55dd5eb955063f1497e9fba8d62212c2e0f6841b80f1735f6a";
+	
+	@Value("${application.security.jwt.secret-key}")
+	private String secretkey;
+	
+	@Value("${application.security.jwt.expiration}")
+	private Long jwtExpiratin;
+	
+	@Value("${application.security.jwt.refresh-token.expiration}")
+	private Long refreshExpiratin;
 
 	public String extractUsername(String token) {
 		return extractClaims(token, Claims::getSubject);
@@ -62,18 +71,28 @@ public class JwtService {
 	}
 	
 	public String generateToken(User user) {
+		return buildToken(user, jwtExpiratin);
+	}
+	
+	public String generateRefreshToken(User user) {
+		return buildToken(user, refreshExpiratin);
+	}
+	
+	private String buildToken(User user, Long expiration) {
+		
 		String token=Jwts
 				.builder()
 				.subject(user.getUsername())
 				.issuedAt(new Date(System.currentTimeMillis()))
-				.expiration(new Date(System.currentTimeMillis()+24*60*60*1000))
+				.expiration(new Date(System.currentTimeMillis()+expiration))
 				.signWith(getSigninKey())
 				.compact();
 		return token;
+		
 	}
 	
 	public SecretKey getSigninKey() {
-		byte[] keyBytes=Decoders.BASE64URL.decode(SECRET_KEY);
+		byte[] keyBytes=Decoders.BASE64URL.decode(secretkey);
 		return Keys.hmacShaKeyFor(keyBytes);
 	}
 }
